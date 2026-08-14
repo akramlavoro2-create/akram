@@ -1,0 +1,229 @@
+//@version=6
+// ============================================================
+// STRATEGIA AKRAM MEAN REVERSION v2.0
+// Perfetta per TradingView + Webhook
+// ============================================================
+
+strategy("AKRAM Mean Reversion v2.0",
+         overlay=true,
+         initial_capital=1000,
+         default_qty_type=strategy.percent_of_equity,
+         default_qty_value=100,
+         commission_type=strategy.commission.percent,
+         commission_value=0.1,
+         slippage=0.05,
+         pyramiding=2,
+         max_bars_back=500,
+         max_lines_count=50,
+         max_labels_count=50,
+         process_orders_on_close=true)
+
+// ============================================================
+// INPUT PARAMETRI - TUTTI CONFIGURABILI
+// ============================================================
+
+// --- RSI ---
+rsiLength = input.int(14, "RSI Length", minval=1, maxval=100, group="RSI")
+rsiOverbought = input.int(70, "RSI Overbought", minval=50, maxval=90, step=1, group="RSI")
+rsiOversold = input.int(30, "RSI Oversold", minval=10, maxval=50, step=1, group="RSI")
+
+// --- Bollinger Bands ---
+bbLength = input.int(20, "BB Length", minval=1, maxval=100, group="Bollinger Bands")
+bbStdDev = input.float(2.0, "BB StdDev", minval=0.5, maxval=4.0, step=0.1, group="Bollinger Bands")
+
+// --- EMA ---
+emaFast = input.int(20, "EMA Fast", minval=1, maxval=200, group="EMA")
+emaMedium = input.int(50, "EMA Medium", minval=1, maxval=200, group="EMA")
+emaSlow = input.int(200, "EMA Slow", minval=1, maxval=500, group="EMA")
+
+// --- ATR ---
+atrLength = input.int(14, "ATR Length", minval=1, maxval=100, group="ATR")
+atrStopMultiplier = input.float(1.5, "ATR Stop Multiplier", minval=0.5, maxval=5.0, step=0.1, group="ATR")
+atrTargetMultiplier = input.float(3.0, "ATR Target Multiplier", minval=0.5, maxval=10.0, step=0.1, group="ATR")
+
+// --- Risk Management ---
+riskPerTrade = input.float(1.0, "Risk % per Trade", minval=0.1, maxval=5.0, step=0.1, group="Risk Management", tooltip="Percentuale di capitale da rischiare per trade")
+maxDrawdown = input.float(20, "Max Drawdown %", minval=5, maxval=50, step=1, group="Risk Management")
+
+// --- Filtri ---
+minVolume = input.float(1000000, "Min Volume", minval=0, step=100000, group="Filters", tooltip="Volume minimo per l'entry")
+minPrice = input.float(100, "Min Price", minval=0, step=1, group="Filters")
+
+// --- Opzioni Display ---
+showSignals = input.bool(true, "Show Signals", group="Display")
+showIndicators = input.bool(true, "Show Indicators", group="Display")
+
+// ============================================================
+// CALCOLO INDICATORI
+// ============================================================
+
+// RSI
+rsiValue = ta.rsi(close, rsiLength)
+
+// Bollinger Bands
+[bollingerMiddle, bollingerUpper, bollingerLower] = ta.bb(close, bbLength, bbStdDev)
+
+// EMA
+emaFastValue = ta.ema(close, emaFast)
+emaMediumValue = ta.ema(close, emaMedium)
+emaSlowValue = ta.ema(close, emaSlow)
+
+// ATR
+atrValue = ta.atr(atrLength)
+
+// Volume
+volumeSMA = ta.sma(volume, 20)
+
+// ============================================================
+// CONDIZIONI DI ENTRATA - MEAN REVERSION
+// ============================================================
+
+// --- LONG CONDITIONS ---
+longCondition1 = rsiValue < rsiOversold
+longCondition2 = close <= bollingerLower
+longCondition3 = close > emaSlowValue
+longCondition4 = volume > volumeSMA * 1.2
+
+longEntry = longCondition1 and longCondition2 and longCondition3 and longCondition4
+
+// --- SHORT CONDITIONS ---
+shortCondition1 = rsiValue > rsiOverbought
+shortCondition2 = close >= bollingerUpper
+shortCondition3 = close < emaSlowValue
+shortCondition4 = volume > volumeSMA * 1.2
+
+shortEntry = shortCondition1 and shortCondition2 and shortCondition3 and shortCondition4
+
+// ============================================================
+// CONDIZIONI DI USCITA
+// ============================================================
+
+// --- EXIT LONG ---
+longExit1 = rsiValue > rsiOverbought
+longExit2 = close >= emaFastValue
+longExit3 = close <= strategy.position_avg_price - (atrValue * atrStopMultiplier)
+longExit4 = close >= strategy.position_avg_price + (atrValue * atrTargetMultiplier)
+
+longExit = longExit1 or longExit2 or longExit3 or longExit4
+
+// --- EXIT SHORT ---
+shortExit1 = rsiValue < rsiOversold
+shortExit2 = close <= emaFastValue
+shortExit3 = close >= strategy.position_avg_price + (atrValue * atrStopMultiplier)
+shortExit4 = close <= strategy.position_avg_price - (atrValue * atrTargetMultiplier)
+
+shortExit = shortExit1 or shortExit2 or shortExit3 or shortExit4
+
+// ============================================================
+// GESTIONE POSIZIONI - ESECUZIONE
+// ============================================================
+
+// --- LONG ---
+if longEntry and strategy.opentrades < 2
+    strategy.entry("Long", strategy.long, comment="LONG_ENTRY")
+    strategy.exit("Long Exit", "Long",
+                  stop=longExit3 ? strategy.position_avg_price - (atrValue * atrStopMultiplier) : na,
+                  limit=longExit4 ? strategy.position_avg_price + (atrValue * atrTargetMultiplier) : na,
+                  comment="Long TP/SL")
+
+// --- SHORT ---
+if shortEntry and strategy.opentrades < 2
+    strategy.entry("Short", strategy.short, comment="SHORT_ENTRY")
+    strategy.exit("Short Exit", "Short",
+                  stop=shortExit3 ? strategy.position_avg_price + (atrValue * atrStopMultiplier) : na,
+                  limit=shortExit4 ? strategy.position_avg_price - (atrValue * atrTargetMultiplier) : na,
+                  comment="Short TP/SL")
+
+// --- USCITA MANUALE ---
+if longExit and strategy.position_size > 0
+    strategy.close("Long", comment="LONG_EXIT")
+
+if shortExit and strategy.position_size < 0
+    strategy.close("Short", comment="SHORT_EXIT")
+
+// ============================================================
+// BACKTEST METRICS
+// ============================================================
+
+// Calcola metriche per il backtest
+totalTrades = strategy.closedtrades
+winningTrades = strategy.wintrades
+losingTrades = strategy.losstrades
+winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0
+profitFactor = strategy.grossprofit > 0 ? strategy.grossprofit / strategy.grossloss : 0
+
+// ============================================================
+// VISUALIZZAZIONE
+// (i plot devono stare a livello globale: in Pine Script non si possono
+// chiamare plot()/plotshape() dentro un blocco if — il valore si rende
+// condizionale, non la chiamata alla funzione)
+// ============================================================
+
+// --- Bandiere di segnale ---
+plotshape(showSignals and longEntry, title="Long Entry", location=location.belowbar,
+          color=color.new(color.green, 0), style=shape.labelup,
+          text="LONG", textcolor=color.white, size=size.small)
+
+plotshape(showSignals and shortEntry, title="Short Entry", location=location.abovebar,
+          color=color.new(color.red, 0), style=shape.labeldown,
+          text="SHORT", textcolor=color.white, size=size.small)
+
+plotshape(showSignals and longExit, title="Long Exit", location=location.belowbar,
+          color=color.new(color.orange, 0), style=shape.labeldown,
+          text="EXIT", textcolor=color.white, size=size.small)
+
+plotshape(showSignals and shortExit, title="Short Exit", location=location.abovebar,
+          color=color.new(color.orange, 0), style=shape.labelup,
+          text="EXIT", textcolor=color.white, size=size.small)
+
+// --- Indicatori visuali ---
+plot(showIndicators ? emaFastValue : na, color=color.new(color.blue, 80), linewidth=1, title="EMA Fast")
+plot(showIndicators ? emaMediumValue : na, color=color.new(color.purple, 80), linewidth=1, title="EMA Medium")
+plot(showIndicators ? emaSlowValue : na, color=color.new(color.red, 60), linewidth=2, title="EMA Slow")
+
+plot(showIndicators ? bollingerUpper : na, color=color.new(color.gray, 50), linewidth=1, title="BB Upper")
+plot(showIndicators ? bollingerMiddle : na, color=color.new(color.gray, 30), linewidth=1, title="BB Middle")
+plot(showIndicators ? bollingerLower : na, color=color.new(color.gray, 50), linewidth=1, title="BB Lower")
+
+// ============================================================
+// ALERT PER WEBHOOK
+// ============================================================
+
+// --- Alert ENTRY ---
+alertcondition(longEntry,
+               title="🟢 AKRAM LONG Entry",
+               message='{"action":"ENTER_LONG","ticker":"{{ticker}}","price":{{close}},"timeframe":"{{interval}}","timestamp":"{{timenow}}"}')
+
+alertcondition(shortEntry,
+               title="🔴 AKRAM SHORT Entry",
+               message='{"action":"ENTER_SHORT","ticker":"{{ticker}}","price":{{close}},"timeframe":"{{interval}}","timestamp":"{{timenow}}"}')
+
+// --- Alert EXIT ---
+alertcondition(longExit and strategy.position_size > 0,
+               title="🟠 AKRAM LONG Exit",
+               message='{"action":"EXIT_LONG","ticker":"{{ticker}}","price":{{close}},"timeframe":"{{interval}}","timestamp":"{{timenow}}"}')
+
+alertcondition(shortExit and strategy.position_size < 0,
+               title="🟠 AKRAM SHORT Exit",
+               message='{"action":"EXIT_SHORT","ticker":"{{ticker}}","price":{{close}},"timeframe":"{{interval}}","timestamp":"{{timenow}}"}')
+
+// ============================================================
+// INFO PANEL (per backtest)
+// ============================================================
+
+// Mostra info nel grafico
+if barstate.islast
+    var table infoTable = table.new(position.bottom_right, 2, 6, border_width=1, bgcolor=color.new(color.black, 80))
+
+    if barstate.isconfirmed
+        table.cell(infoTable, 0, 0, "📊 METRICHE BACKTEST", text_color=color.white, bgcolor=color.new(color.blue, 80), text_size=size.small)
+        table.cell(infoTable, 0, 1, "Total Trades:", text_color=color.white, text_size=size.small)
+        table.cell(infoTable, 1, 1, str.tostring(totalTrades), text_color=color.white, text_size=size.small)
+        table.cell(infoTable, 0, 2, "Win Rate:", text_color=color.white, text_size=size.small)
+        table.cell(infoTable, 1, 2, str.tostring(winRate, "#.##") + "%", text_color=color.green, text_size=size.small)
+        table.cell(infoTable, 0, 3, "Profit Factor:", text_color=color.white, text_size=size.small)
+        table.cell(infoTable, 1, 3, str.tostring(profitFactor, "#.##"), text_color=color.yellow, text_size=size.small)
+        table.cell(infoTable, 0, 4, "Gross Profit:", text_color=color.white, text_size=size.small)
+        table.cell(infoTable, 1, 4, "$" + str.tostring(strategy.grossprofit, "#.##"), text_color=color.green, text_size=size.small)
+        table.cell(infoTable, 0, 5, "Gross Loss:", text_color=color.white, text_size=size.small)
+        table.cell(infoTable, 1, 5, "$" + str.tostring(strategy.grossloss, "#.##"), text_color=color.red, text_size=size.small)

@@ -1,0 +1,142 @@
+{
+  "name": "Mean Reversion Strategy - AKRAM v2.0",
+  "version": "2.0.0",
+  "description": "Strategia di mean reversion basata su RSI, Bollinger Bands, EMA e ATR con gestione del rischio avanzata",
+  "author": "AKRAM Trading Bot",
+  "timeframe": "1h",
+  "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+
+  "entry_rules": {
+    "long": [
+      {
+        "id": "LONG_001",
+        "description": "RSI < 30 (ipervenduto)",
+        "condition": "rsi < 30",
+        "severity": "high",
+        "weight": 2
+      },
+      {
+        "id": "LONG_002",
+        "description": "Prezzo tocca o scende sotto banda inferiore Bollinger",
+        "condition": "price <= bb_lower",
+        "severity": "high",
+        "weight": 2
+      },
+      {
+        "id": "LONG_003",
+        "description": "Prezzo sopra EMA 200 (trend rialzista)",
+        "condition": "close > ema_200",
+        "severity": "medium",
+        "weight": 1
+      },
+      {
+        "id": "LONG_004",
+        "description": "Volume superiore alla media (conferma)",
+        "condition": "volume > volume_ma_20",
+        "severity": "low",
+        "weight": 0.5
+      }
+    ],
+    "short": [
+      {
+        "id": "SHORT_001",
+        "description": "RSI > 70 (ipercomprato)",
+        "condition": "rsi > 70",
+        "severity": "high",
+        "weight": 2
+      },
+      {
+        "id": "SHORT_002",
+        "description": "Prezzo tocca o sale sopra banda superiore Bollinger",
+        "condition": "price >= bb_upper",
+        "severity": "high",
+        "weight": 2
+      },
+      {
+        "id": "SHORT_003",
+        "description": "Prezzo sotto EMA 200 (trend ribassista)",
+        "condition": "close < ema_200",
+        "severity": "medium",
+        "weight": 1
+      },
+      {
+        "id": "SHORT_004",
+        "description": "Volume superiore alla media (conferma)",
+        "condition": "volume > volume_ma_20",
+        "severity": "low",
+        "weight": 0.5
+      }
+    ]
+  },
+
+  "exit_rules": {
+    "long": [
+      {
+        "id": "EXIT_LONG_001",
+        "description": "RSI > 70 (prendi profitto)",
+        "condition": "rsi > 70"
+      },
+      {
+        "id": "EXIT_LONG_002",
+        "description": "Prezzo tocca EMA 20 (resistenza)",
+        "condition": "close >= ema_20"
+      },
+      {
+        "id": "EXIT_LONG_003",
+        "description": "Stop loss - ATR",
+        "condition": "price <= entry_price - (atr * 1.5)"
+      }
+    ],
+    "short": [
+      {
+        "id": "EXIT_SHORT_001",
+        "description": "RSI < 30 (prendi profitto)",
+        "condition": "rsi < 30"
+      },
+      {
+        "id": "EXIT_SHORT_002",
+        "description": "Prezzo tocca EMA 20 (supporto)",
+        "condition": "close <= ema_20"
+      },
+      {
+        "id": "EXIT_SHORT_003",
+        "description": "Stop loss - ATR",
+        "condition": "price >= entry_price + (atr * 1.5)"
+      }
+    ]
+  },
+
+  "risk_management": {
+    "max_risk_per_trade_percent": 1.0,
+    "stop_loss_atr_multiplier": 1.5,
+    "take_profit_atr_multiplier": 3.0,
+    "max_drawdown_percent": 20,
+    "max_positions": 2,
+    "risk_reward_ratio": 2.0,
+    "trailing_stop_activation": 1.5,
+    "trailing_stop_distance": 0.5
+  },
+
+  "indicators": {
+    "rsi": { "length": 14, "overbought": 70, "oversold": 30 },
+    "bollinger_bands": { "length": 20, "stddev": 2.0 },
+    "ema": { "fast": 20, "medium": 50, "slow": 200 },
+    "atr": { "length": 14 },
+    "volume": { "ma_length": 20 }
+  },
+
+  "filters": {
+    "min_volume": 1000000,
+    "min_price": 100,
+    "max_spread_percent": 0.5,
+    "min_volatility_percent": 0.5
+  },
+
+  "backtest": {
+    "start_date": "2024-01-01",
+    "end_date": "2024-12-31",
+    "initial_capital": 1000,
+    "commission": 0.1,
+    "slippage": 0.05
+  }
+}
