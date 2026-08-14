@@ -165,7 +165,9 @@ async function bitGetRequest(method, endpoint, body = null) {
     const url = `https://api.bitget.com${endpoint}`;
 
     try {
-        const response = await fetch(url, { method, headers, body: bodyStr });
+        const fetchOptions = { method, headers };
+        if (bodyStr) fetchOptions.body = bodyStr;
+        const response = await fetch(url, fetchOptions);
         const data = await response.json();
 
         if (data.code !== '00000') {
