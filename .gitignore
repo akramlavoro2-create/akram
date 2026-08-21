@@ -5,4 +5,7 @@ bot.log
 trades.csv
 safety-check-log.json
 positions.json
+bot-state.json
+backtest-results.json
+run.out
 .DS_Store

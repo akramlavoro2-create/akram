@@ -79,3 +79,41 @@ npm start
 sudo systemctl stop akram-bot     # se usi systemd
 pm2 stop akram-bot                # se usi PM2
 ```
+
+---
+
+## Aggiornamento v3.0 — comandi disponibili
+
+```bash
+npm test              # suite di self-test, non tocca l'exchange
+npm run backtest      # backtest su tutti i simboli configurati
+node bot.js --once    # un solo ciclo, poi esce
+npm start             # loop continuo
+```
+
+### Backtest con dati reali
+
+Il backtest lanciato senza dati usa una serie sintetica: serve solo a
+verificare che il motore funzioni, **non misura la redditività**. Per un
+backtest valido servono candele reali:
+
+```bash
+node bot.js --backtest --data candele-storiche.json
+```
+
+Il file può essere un array di candele `[timestamp, open, high, low, close, volume]`
+oppure un oggetto `{ "BTCUSDT": [...], "ETHUSDT": [...] }`.
+Con `DATA_SOURCE=bitget` e rete disponibile, `--backtest` scarica le candele
+direttamente dall'exchange.
+
+### Prima di passare al denaro reale
+
+1. `PAPER_TRADING=false` è l'unico valore che abilita il live. Qualunque altro
+   valore mantiene la simulazione.
+2. In live sono obbligatori: le tre credenziali BitGet, `DATA_SOURCE=bitget`
+   e — se il webhook è attivo — `WEBHOOK_TOKEN`. Il bot rifiuta di partire altrimenti.
+3. Con `TRADE_MODE=spot` i segnali SHORT vengono scartati: sullo spot non si
+   può vendere allo scoperto.
+4. Stop loss e take profit vengono piazzati **sull'exchange** subito dopo
+   l'ingresso. Se non è possibile piazzarli, la posizione viene chiusa
+   immediatamente invece di restare scoperta.
